@@ -1,15 +1,29 @@
 import mysql.connector
 import os
 from mysql.connector import Error
+import streamlit as st
 
-# Configuración de tu conexión a MySQL
-DB_CONFIG = {
-    'host': os.getenv('DB_HOST'),
-    'port': int(os.getenv('DB_PORT', 3306)), # Usa el puerto del .env o 3306 por defecto
-    'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD'),
-    'database': os.getenv('DB_NAME', 'bot_memoria')
-}
+def obtener_config_db():
+    """Obtiene la configuración leyendo desde st.secrets (Nube) o de os.getenv (.env local)."""
+    # Intentamos leer desde Secrets de Streamlit (Entorno Cloud)
+    try:
+        return {
+            'host': st.secrets["DB_HOST"],
+            'port': int(st.secrets["DB_PORT"]),
+            'user': st.secrets["DB_USER"],
+            'password': st.secrets["DB_PASSWORD"],
+            'database': st.secrets["DB_NAME"],
+            'ssl_disabled': False # Mantiene SSL activo para Aiven
+        }
+    except Exception:
+        # Si no existen st.secrets (Entorno Local .env)
+        return {
+            'host': os.getenv('DB_HOST', 'localhost'),
+            'port': int(os.getenv('DB_PORT', 3306)),
+            'user': os.getenv('DB_USER', 'root'),
+            'password': os.getenv('DB_PASSWORD'),
+            'database': os.getenv('DB_NAME', 'bot_memoria')
+        }
 
 def obtener_conexion():
     """Crea y retorna la conexión a MySQL usando IP y Puerto específicos."""
