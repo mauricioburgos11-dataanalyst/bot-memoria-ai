@@ -26,11 +26,12 @@ def obtener_config_db():
         }
 
 def obtener_conexion():
-    """Crea y retorna la conexión a MySQL usando IP y Puerto específicos."""
+    """Crea y retorna la conexión a MySQL."""
     try:
-        return mysql.connector.connect(**DB_CONFIG)
+        config = obtener_config_db()
+        return mysql.connector.connect(**config)
     except Error as e:
-        print(f"❌ Error al conectar a MySQL ({DB_CONFIG['host']}:{DB_CONFIG['port']}): {e}")
+        print(f"❌ Error al conectar a MySQL: {e}")
         return None
 
 def inicializar_db():
