@@ -77,12 +77,12 @@ if prompt := st.chat_input("Escribe tu mensaje..."):
         {farmacia_sql.ESQUEMA_FARMACIA}
         
         INSTRUCCIONES:
-        1. Si el usuario pregunta por precios, stock, remedios o ventas de la farmacia, 
+        1. Si el usuario pregunta por precios, stock o productos de la farmacia, 
            genera la consulta SQL correcta y usa la herramienta 'consultar_base_de_datos_farmacia'.
         2. Si el usuario comparte un dato personal nuevo sobre sí mismo, usa 'guardar_informacion_en_base_de_datos'.
         3. Si la pregunta es sobre prospectos o PDFs cargados, usa la información de RAG.
         """,
-        tools=[guardar_informacion_en_base_de_datos, consultar_base_de_datos_farmacia]
+        tools=[guardar_informacion_en_base_de_datos, consultar_base_de_datos_farmacia, modificar_base_de_datos_farmacia]
     )
 
     with st.chat_message("assistant"):
@@ -139,8 +139,7 @@ if prompt := st.chat_input("Escribe tu mensaje..."):
 def consultar_base_de_datos_farmacia(consulta_sql: str) -> str:
     """
     Ejecuta una consulta SQL SELECT en la base de datos de la farmacia.
-    Úsala SIEMPRE que el usuario pregunte por stock, precios, medicamentos,
-    ventas o laboratorios.
+    Úsala SIEMPRE que el usuario pregunte por stock, precios, productos, laboratorios.
     IMPORTANTE: Genera únicamente consultas SELECT.
     """
     # Seguridad básica: Solo permitimos consultas de lectura (SELECT)
@@ -149,3 +148,11 @@ def consultar_base_de_datos_farmacia(consulta_sql: str) -> str:
     
     res = farmacia_sql.ejecutar_consulta_sql(consulta_sql)
     return str(res)
+
+def modificar_base_de_datos_farmacia(consulta_sql: str) -> str:
+    """
+    Ejecuta comandos DDL o DML (CREATE TABLE, ALTER TABLE, INSERT, UPDATE, DELETE) 
+    para modificar o ampliar la estructura de la base de datos de la farmacia.
+    Úsala cuando el usuario te pida crear tablas nuevas, agregar campos o insertar registros.
+    """
+    return farmacia_sql.ejecutar_modificacion_sql(consulta_sql)
