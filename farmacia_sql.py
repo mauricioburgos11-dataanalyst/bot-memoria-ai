@@ -211,7 +211,10 @@ Tablas disponibles en la base de datos 'defaultdb':
  )
 
  REGLAS PARA CONSULTAS SQL:
-- Genera ÚNICAMENTE consultas de lectura SQL que empiecen con 'SELECT'.
+- No uses comillas dobles ("") para los nombres de tablas ni columnas en las consultas MySQL.
+- Para saber el stock de un producto, debes unir 'productos' con 'lotes_en_stock' usando productos.codigo_barras = lotes_en_stock.codigo_barras.
+- Para saber la droga, forma o laboratorio de un producto, haz los JOINs correspondientes con 'laboratorios', 'forma_farmaceutica', 'concentraciones' y 'presentaciones'.
+- Genera ÚNICAMENTE consultas de lectura que comiencen con 'SELECT'.
 """
 
 def ejecutar_consulta_sql(query_sql: str):
