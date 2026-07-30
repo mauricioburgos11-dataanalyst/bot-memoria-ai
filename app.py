@@ -156,3 +156,22 @@ def modificar_base_de_datos_farmacia(consulta_sql: str) -> str:
     Úsala cuando el usuario te pida crear tablas nuevas, agregar campos o insertar registros.
     """
     return farmacia_sql.ejecutar_modificacion_sql(consulta_sql)
+
+# Si la IA sugiere una modificación SQL, la mostramos en un bloque especial
+if "sql_pendiente" in st.session_state and st.session_state.sql_pendiente:
+    st.warning("⚠️ La IA propone ejecutar la siguiente modificación en la base de datos:")
+    st.code(st.session_state.sql_pendiente, language="sql")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ Confirmar y Aplicar Cambio en Aiven"):
+            resultado = farmacia_sql.ejecutar_modificacion_sql(st.session_state.sql_pendiente)
+            st.success(resultado)
+            st.session_state.sql_pendiente = None
+            st.rerun()
+            
+    with col2:
+        if st.button("❌ Cancelar Operación"):
+            st.session_state.sql_pendiente = None
+            st.info("Operación cancelada. No se modificó la base de datos.")
+            st.rerun()
