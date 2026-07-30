@@ -116,6 +116,14 @@ if prompt := st.chat_input("Escribe tu mensaje..."):
                                 config=config
                             )
                             return resp_final.text, False
+                            
+                    if se_guardo_dato:
+                        resp_final = client.models.generate_content(
+                            model=modelo_nombre,
+                            contents=f"El dato fue guardado con éxito. Responde amigablemente a Mauricio sobre: {prompt}",
+                            config=config
+                        )
+                        return resp_final.text, True
                 else:
                     return resp.text, False
 
