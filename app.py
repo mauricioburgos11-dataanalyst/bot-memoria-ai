@@ -126,13 +126,19 @@ if prompt := st.chat_input("Escribe tu mensaje..."):
         tools=[guardar_informacion_en_base_de_datos, consultar_base_de_datos_farmacia, modificar_base_de_datos_farmacia]
     )
 
+    # Convertimos los mensajes de streamlit en el formato que espera la API de Gemini
+    historial_gemini = [
+        {"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]} 
+        for m in st.session_state.mensajes[:-1] # Pasamos todo menos el prompt actual
+    ]
+    
     with st.chat_message("assistant"):
-        with st.spinner("Procesando con Gemini + MySQL..."):
-            # Función auxiliar para llamar a Gemini con soporte de herramientas
+        with st.spinner("Procesando..."):
             def ejecutar_llamada(modelo_nombre):
+                # Usamos el historial completo en la llamada
                 resp = client.models.generate_content(
                     model=modelo_nombre,
-                    contents=prompt,
+                    contents=historial_gemini + [{"role": "user", "parts": [prompt]}],
                     config=config
                 )
                 
