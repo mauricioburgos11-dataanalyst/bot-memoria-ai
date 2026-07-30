@@ -174,10 +174,10 @@ if prompt := st.chat_input("Consulta tu farmacia..."):
 
             # Intentos con fallback de modelos
             try:
-                texto_bot, guardo_algo = ejecutar_llamada('gemini-3.5-flash')
+                texto_bot, guardo_algo = ejecutar_llamada('gemini-3.1-flash-lite')
             except Exception as e:
                 try:
-                    texto_bot, guardo_algo = ejecutar_llamada('gemini-3.1-flash-lite')
+                    texto_bot, guardo_algo = ejecutar_llamada('gemini-3.5-flash')
                 except Exception as e2:
                     texto_bot, guardo_algo = f"⚠️ Error al conectar con la API: {e2}", False
 
