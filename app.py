@@ -5,6 +5,7 @@ from google import genai
 from google.genai import types
 import database      # Módulo MySQL (Aiven)
 import rag_manager   # Módulo ChromaDB (RAG)
+import farmacia_sql # Importamos el nuevo módulo
 
 # Cargar variables de entorno
 load_dotenv()
@@ -64,20 +65,24 @@ if prompt := st.chat_input("Escribe tu mensaje..."):
     # 2. Configurar Gemini con System Instruction + Herramientas
     config = types.GenerateContentConfig(
         system_instruction=f"""
-        Eres un asistente de IA personal muy atento y profesional.
+        Eres un asistente de IA experto para una farmacia y asistente personal del usuario.
         
         === DATOS CONOCIDOS DEL USUARIO (MySQL) ===
         {contexto_mysql}
         
         === CONTEXTO DE DOCUMENTOS (RAG / ChromaDB) ===
         {contexto_rag}
+
+        === ESTRUCTURA DE LA BASE DE DATOS DE FARMACIA (Text-to-SQL) ===
+        {farmacia_sql.ESQUEMA_FARMACIA}
         
         INSTRUCCIONES:
-        - Utiliza los datos conocidos del usuario para responder de forma personalizada.
-        - Si el usuario te cuenta un dato personal nuevo (ej: su nombre, trabajo, hobbies, compras),
-          DEBES usar obligatoriamente la herramienta 'guardar_informacion_en_base_de_datos'.
+        1. Si el usuario pregunta por precios, stock, remedios o ventas de la farmacia, 
+           genera la consulta SQL correcta y usa la herramienta 'consultar_base_de_datos_farmacia'.
+        2. Si el usuario comparte un dato personal nuevo sobre sí mismo, usa 'guardar_informacion_en_base_de_datos'.
+        3. Si la pregunta es sobre prospectos o PDFs cargados, usa la información de RAG.
         """,
-        tools=[guardar_informacion_en_base_de_datos]
+        tools=[guardar_informacion_en_base_de_datos, consultar_base_de_datos_farmacia]
     )
 
     with st.chat_message("assistant"):
@@ -92,23 +97,25 @@ if prompt := st.chat_input("Escribe tu mensaje..."):
                 
                 # VERIFICAR SI GEMINI PIDIÓ EJECUTAR LA HERRAMIENTA
                 if resp.function_calls:
-                    se_guardos_datos = False
+                    se_guardo = False
                     for llamada in resp.function_calls:
                         if llamada.name == "guardar_informacion_en_base_de_datos":
                             args = llamada.args
-                            c = args.get("clave")
-                            v = args.get("valor")
-                            # EJECUCIÓN REAL EN PYTHON CONECTADO A AIVEN
-                            guardar_informacion_en_base_de_datos(c, v)
-                            se_guardos_datos = True
-                    
-                    # Si guardó datos, pedimos la respuesta final conversacional
-                    resp_final = client.models.generate_content(
-                        model=modelo_nombre,
-                        contents=f"Se guardó el dato en la base de datos correctamente. Responde de forma natural a: {prompt}",
-                        config=config
-                    )
-                    return resp_final.text, se_guardos_datos
+                            guardar_informacion_en_base_de_datos(args.get("clave"), args.get("valor"))
+                            se_guardo = True
+                        elif llamada.name == "consultar_base_de_datos_farmacia":
+                            args = llamada.args
+                            query = args.get("consulta_sql")
+                            st.info(f"⚙️ [SQL Generado por la IA]: `{query}`") # Muestra el SQL en pantalla
+                            resultado_db = consultar_base_de_datos_farmacia(query)
+                            
+                            # Le devolvemos el resultado de la base de datos a Gemini para que redacte la respuesta final
+                            resp_final = client.models.generate_content(
+                                model=modelo_nombre,
+                                contents=f"El resultado de la base de datos fue: {resultado_db}. Responde amigablemente a: {prompt}",
+                                config=config
+                            )
+                            return resp_final.text, False
                 else:
                     return resp.text, False
 
@@ -127,3 +134,18 @@ if prompt := st.chat_input("Escribe tu mensaje..."):
             # Si se guardó un dato nuevo en Aiven, recargamos la interfaz para actualizar el sidebar
             if guardo_algo:
                 st.rerun()
+                
+# DEFINIMOS LA HERRAMIENTA DE CONSULTA A FARMACIA
+def consultar_base_de_datos_farmacia(consulta_sql: str) -> str:
+    """
+    Ejecuta una consulta SQL SELECT en la base de datos de la farmacia.
+    Úsala SIEMPRE que el usuario pregunte por stock, precios, medicamentos,
+    ventas o laboratorios.
+    IMPORTANTE: Genera únicamente consultas SELECT.
+    """
+    # Seguridad básica: Solo permitimos consultas de lectura (SELECT)
+    if not consulta_sql.strip().lower().startswith("select"):
+        return "Error de seguridad: Solo se permiten consultas de lectura (SELECT)."
+    
+    res = farmacia_sql.ejecutar_consulta_sql(consulta_sql)
+    return str(res)
