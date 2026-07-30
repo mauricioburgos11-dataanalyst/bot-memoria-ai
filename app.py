@@ -3,15 +3,15 @@ import streamlit as st
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-import database      # Módulo MySQL (Aiven)
-import rag_manager   # Módulo ChromaDB (RAG)
-import farmacia_sql # Importamos el nuevo módulo
+import database      # Tu módulo MySQL para memoria personal
+import rag_manager   # Tu módulo para ChromaDB/RAG
+import farmacia_sql  # Tu módulo para consultas SQL de la farmacia
 
-# Cargar variables de entorno
+# Cargar variables de entorno y cliente Gemini
 load_dotenv()
 client = genai.Client()
 
-# Inicializar MySQL en Aiven (Crea la tabla automáticamente si no existe)
+# Inicializar bases de datos al arrancar
 database.inicializar_db()
 
 # Inicializar estados de la sesión
@@ -20,170 +20,111 @@ if "mensajes" not in st.session_state:
 if "sql_pendiente" not in st.session_state:
     st.session_state.sql_pendiente = None
 
-# DEFINICIÓN DE LA HERRAMIENTA DE GUARDADO
+# ==============================================================================
+# 1. HERRAMIENTAS (Tools) PARA GEMINI
+# ==============================================================================
+
 def guardar_informacion_en_base_de_datos(clave: str, valor: str) -> str:
-    """
-    Guarda o actualiza una información clave sobre el usuario en la base de datos MySQL.
-    Úsala cuando el usuario comparta su nombre, datos personales, compras, gustos o estudios.
-    """
+    """Guarda o actualiza datos personales del usuario en MySQL."""
     database.guardar_dato(clave, valor)
-    return f"Éxito: Se guardó en MySQL '{clave}' = '{valor}'"
+    return f"Éxito: Se guardó '{clave}' = '{valor}'"
 
-# DEFINIMOS LA HERRAMIENTA DE CONSULTA A FARMACIA
 def consultar_base_de_datos_farmacia(consulta_sql: str) -> str:
-    """
-    Ejecuta una consulta SQL SELECT en la base de datos de la farmacia.
-    Úsala SIEMPRE que el usuario pregunte por stock, precios, productos, laboratorios.
-    IMPORTANTE: Genera únicamente consultas SELECT.
-    """
-    # Seguridad básica: Solo permitimos consultas de lectura (SELECT)
+    """Ejecuta una consulta SQL SELECT en la base de datos de la farmacia."""
     if not consulta_sql.strip().lower().startswith("select"):
-        return "Error de seguridad: Solo se permiten consultas de lectura (SELECT)."
-    
-    res = farmacia_sql.ejecutar_consulta_sql(consulta_sql)
-    return str(res)
+        return "Error: Solo se permiten consultas de lectura (SELECT)."
+    return str(farmacia_sql.ejecutar_consulta_sql(consulta_sql))
 
-def modificar_base_de_datos_farmacia(consulta_sql: str) -> str:
-    """
-    Ejecuta comandos DDL o DML (CREATE TABLE, ALTER TABLE, INSERT, UPDATE, DELETE) 
-    para modificar o ampliar la estructura de la base de datos de la farmacia.
-    Úsala cuando el usuario te pida crear tablas nuevas, agregar campos o insertar registros.
-    """
-    return farmacia_sql.ejecutar_modificacion_sql(consulta_sql)
+def proponer_modificacion_farmacia(consulta_sql: str) -> str:
+    """Propone una modificación DDL/DML (CREATE, INSERT, UPDATE) para revisión humana."""
+    st.session_state.sql_pendiente = consulta_sql
+    return "Propuesta SQL creada. Esperando confirmación manual del usuario."
 
-# CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="AI Engineer App - Mauricio", page_icon="🧠", layout="wide")
-st.title("🧠 Asistente IA: Farmacia + RAG + Memoria")
+# ==============================================================================
+# 2. INTERFAZ STREAMLIT
+# ==============================================================================
 
-# BARRA LATERAL (SIDEBAR)
+st.set_page_config(page_title="AI Engineer App", page_icon="🧠", layout="wide")
+st.title("🧠 Asistente de IA: Farmacia + RAG + Memoria")
+
+# BARRA LATERAL
 with st.sidebar:
-    st.header("🗄️ 1. Memoria en MySQL (Aiven)")
-    contexto_mysql = database.obtener_memoria()
-    st.text_area("Datos guardados del usuario:", contexto_mysql, height=200)
-    
+    st.header("🗄️ Memoria Personal (MySQL)")
+    st.text_area("Datos guardados:", database.obtener_memoria(), height=150)
     if st.button("🔄 Recargar Memoria"):
         st.rerun()
 
     st.markdown("---")
-    st.header("📄 2. Memoria RAG (PDFs)")
-    archivo_pdf = st.file_uploader("Sube un PDF:", type=["pdf"])
-    if archivo_pdf is not None:
-        if st.button("Procesar PDF en Base Vectorial"):
-            with st.spinner("Creando Embeddings en ChromaDB..."):
-                num_chunks = rag_manager.procesar_pdf(archivo_pdf)
-                st.success(f"¡PDF procesado! {num_chunks} fragmentos guardados.")
+    st.header("📄 Memoria RAG (PDFs)")
+    archivo = st.file_uploader("Subir PDF:", type=["pdf"])
+    if archivo and st.button("Indexar PDF"):
+        with st.spinner("Procesando embeddings..."):
+            n = rag_manager.procesar_pdf(archivo)
+            st.success(f"¡Hecho! {n} fragmentos guardados.")
 
-# Si la IA sugiere una modificación SQL, la mostramos en un bloque especial
-if "sql_pendiente" in st.session_state and st.session_state.sql_pendiente:
-    st.warning("⚠️ La IA propone ejecutar la siguiente modificación en la base de datos:")
+# SECCIÓN HUMAN-IN-THE-LOOP
+if st.session_state.sql_pendiente:
+    st.warning("⚠️ Acción pendiente: Revisa y confirma el código SQL:")
     st.code(st.session_state.sql_pendiente, language="sql")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("✅ Confirmar y Aplicar Cambio en Aiven"):
-            resultado = farmacia_sql.ejecutar_modificacion_sql(st.session_state.sql_pendiente)
-            st.success(resultado)
-            st.session_state.sql_pendiente = None
-            st.rerun()
-            
-    with col2:
-        if st.button("❌ Cancelar Operación"):
-            st.session_state.sql_pendiente = None
-            st.info("Operación cancelada. No se modificó la base de datos.")
-            st.rerun()
+    if st.button("✅ Confirmar y ejecutar"):
+        res = farmacia_sql.ejecutar_modificacion_sql(st.session_state.sql_pendiente)
+        st.success(res)
+        st.session_state.sql_pendiente = None
+        st.rerun()
+    if st.button("❌ Cancelar"):
+        st.session_state.sql_pendiente = None
+        st.rerun()
 
-# HISTORIAL DE CHAT
+# CHAT
 for msg in st.session_state.mensajes:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# INPUT DEL USUARIO
-if prompt := st.chat_input("Consulta tu farmacia..."):
+if prompt := st.chat_input("Consulta tu farmacia o gestiona datos..."):
     st.session_state.mensajes.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # 1. Búsqueda semántica en RAG
+    # Preparar contexto para Gemini
     contexto_rag = rag_manager.buscar_contexto_relevante(prompt)
+    contexto_mysql = database.obtener_memoria()
     historial_gemini = [{"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]} for m in st.session_state.mensajes[:-1]]
 
-    # 2. Configurar Gemini con System Instruction + Herramientas
     config = types.GenerateContentConfig(
         system_instruction=f"""
-        Eres un asistente de IA experto para una farmacia y asistente personal del usuario.
-        
-        === DATOS CONOCIDOS DEL USUARIO (MySQL) ===
-        {contexto_mysql}
-        
-        === CONTEXTO DE DOCUMENTOS (RAG / ChromaDB) ===
-        {contexto_rag}
-
-        === ESTRUCTURA DE LA BASE DE DATOS DE FARMACIA (Text-to-SQL) ===
-        {farmacia_sql.ESQUEMA_FARMACIA}
-        
-        INSTRUCCIONES:
-        1. Si el usuario pregunta por precios, stock o productos de la farmacia, 
-           genera la consulta SQL correcta y usa la herramienta 'consultar_base_de_datos_farmacia'.
-        2. Si el usuario comparte un dato personal nuevo sobre sí mismo, usa 'guardar_informacion_en_base_de_datos'.
-        3. Si la pregunta es sobre prospectos o PDFs cargados, usa la información de RAG.
+        Eres un asistente inteligente para una farmacia.
+        Memoria del usuario: {contexto_mysql}
+        Contexto RAG: {contexto_rag}
+        Base de datos: {farmacia_sql.ESQUEMA_FARMACIA}
         """,
-        tools=[guardar_informacion_en_base_de_datos, consultar_base_de_datos_farmacia, modificar_base_de_datos_farmacia]
+        tools=[guardar_informacion_en_base_de_datos, consultar_base_de_datos_farmacia, proponer_modificacion_farmacia]
     )
 
     with st.chat_message("assistant"):
-        with st.spinner("Procesando consulta..."):
-            def ejecutar_llamada(modelo_nombre):
-                # Usamos el historial completo en la llamada
-                resp = client.models.generate_content(
-                    model=modelo_nombre,
-                    contents=historial_gemini + [{"role": "user", "parts": [prompt]}],
-                    config=config
-                )
-                
-                # VERIFICAR SI GEMINI PIDIÓ EJECUTAR LA HERRAMIENTA
-                if resp.function_calls:
-                    se_guardo = False
-                    for llamada in resp.function_calls:
-                        if llamada.name == "guardar_informacion_en_base_de_datos":
-                            args = llamada.args
-                            guardar_informacion_en_base_de_datos(args.get("clave"), args.get("valor"))
-                            se_guardo = True
-                        elif llamada.name == "consultar_base_de_datos_farmacia":
-                            args = llamada.args
-                            query = args.get("consulta_sql")
-                            st.info(f"⚙️ [SQL Generado por la IA]: `{query}`") # Muestra el SQL en pantalla
-                            resultado_db = consultar_base_de_datos_farmacia(query)
-                            
-                            # Le devolvemos el resultado de la base de datos a Gemini para que redacte la respuesta final
-                            resp_final = client.models.generate_content(
-                                model=modelo_nombre,
-                                contents=f"El resultado de la base de datos fue: {resultado_db}. Responde amigablemente a: {prompt}",
-                                config=config
-                            )
-                            return resp_final.text, False
-                            
-                    if se_guardo_dato:
-                        resp_final = client.models.generate_content(
-                            model=modelo_nombre,
-                            contents=f"El dato fue guardado con éxito. Responde amigablemente a Mauricio sobre: {prompt}",
-                            config=config
-                        )
-                        return resp_final.text, True
-                else:
-                    return resp.text, False
+        resp = client.models.generate_content(
+            model='gemini-3.5-flash',
+            contents=historial_gemini + [{"role": "user", "parts": [prompt]}],
+            config=config
+        )
 
-            # Intentos con fallback de modelos
-            try:
-                texto_bot, guardo_algo = ejecutar_llamada('gemini-3.1-flash-lite')
-            except Exception as e:
-                try:
-                    texto_bot, guardo_algo = ejecutar_llamada('gemini-3.5-flash')
-                except Exception as e2:
-                    texto_bot, guardo_algo = f"⚠️ Error al conectar con la API: {e2}", False
-
-            st.markdown(texto_bot)
-            st.session_state.mensajes.append({"role": "assistant", "content": texto_bot})
-            
-            # Si se guardó un dato nuevo en Aiven, recargamos la interfaz para actualizar el sidebar
-            if guardo_algo:
-                st.rerun()
+        # Lógica de ejecución de herramientas
+        debe_recargar = False
+        if resp.function_calls:
+            for llamada in resp.function_calls:
+                if llamada.name == "guardar_informacion_en_base_de_datos":
+                    guardar_informacion_en_base_de_datos(llamada.args.get("clave"), llamada.args.get("valor"))
+                    debe_recargar = True
+                elif llamada.name == "consultar_base_de_datos_farmacia":
+                    res = consultar_base_de_datos_farmacia(llamada.args.get("consulta_sql"))
+                    st.info(f"⚙️ SQL: `{llamada.args.get('consulta_sql')}`")
+                    # Llamada final con resultado
+                    resp = client.models.generate_content(
+                        model='gemini-3.5-flash',
+                        contents=f"El resultado fue: {res}. Responde amablemente a: {prompt}",
+                        config=config
+                    )
+        
+        st.markdown(resp.text)
+        st.session_state.mensajes.append({"role": "assistant", "content": resp.text})
+        if debe_recargar or st.session_state.sql_pendiente:
+            st.rerun()
