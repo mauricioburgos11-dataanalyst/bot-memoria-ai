@@ -231,3 +231,19 @@ def ejecutar_consulta_sql(query_sql: str):
         return resultados
     except Exception as e:
         return f"Error ejecutando SQL: {e}"
+
+def ejecutar_modificacion_sql(query_sql: str):
+    """Ejecuta consultas de modificación DDL/DML (CREATE, ALTER, INSERT, UPDATE) en Aiven."""
+    conn = database.obtener_conexion()
+    if not conn:
+        return "⚠️ Error: No se pudo conectar a la base de datos de Aiven."
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute(query_sql)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return "✅ Operación SQL ejecutada con éxito en la base de datos."
+    except Exception as e:
+        return f"Error al ejecutar modificación SQL: {e}"
