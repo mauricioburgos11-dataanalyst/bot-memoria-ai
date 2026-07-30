@@ -14,6 +14,12 @@ client = genai.Client()
 # Inicializar MySQL en Aiven (Crea la tabla automáticamente si no existe)
 database.inicializar_db()
 
+# Inicializar estados de la sesión
+if "mensajes" not in st.session_state:
+    st.session_state.mensajes = []
+if "sql_pendiente" not in st.session_state:
+    st.session_state.sql_pendiente = None
+
 # DEFINICIÓN DE LA HERRAMIENTA DE GUARDADO
 def guardar_informacion_en_base_de_datos(clave: str, valor: str) -> str:
     """
@@ -47,7 +53,7 @@ def modificar_base_de_datos_farmacia(consulta_sql: str) -> str:
 
 # CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="AI Engineer App - Mauricio", page_icon="🧠", layout="wide")
-st.title("🧠 Asistente con Memoria MySQL + RAG")
+st.title("🧠 Asistente IA: Farmacia + RAG + Memoria")
 
 # BARRA LATERAL (SIDEBAR)
 with st.sidebar:
@@ -87,21 +93,19 @@ if "sql_pendiente" in st.session_state and st.session_state.sql_pendiente:
             st.rerun()
 
 # HISTORIAL DE CHAT
-if "mensajes" not in st.session_state:
-    st.session_state.mensajes = []
-
 for msg in st.session_state.mensajes:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 # INPUT DEL USUARIO
-if prompt := st.chat_input("Escribe tu mensaje..."):
+if prompt := st.chat_input("Consulta tu farmacia..."):
     st.session_state.mensajes.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     # 1. Búsqueda semántica en RAG
     contexto_rag = rag_manager.buscar_contexto_relevante(prompt)
+    historial_gemini = [{"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]} for m in st.session_state.mensajes[:-1]]
 
     # 2. Configurar Gemini con System Instruction + Herramientas
     config = types.GenerateContentConfig(
@@ -126,14 +130,8 @@ if prompt := st.chat_input("Escribe tu mensaje..."):
         tools=[guardar_informacion_en_base_de_datos, consultar_base_de_datos_farmacia, modificar_base_de_datos_farmacia]
     )
 
-    # Convertimos los mensajes de streamlit en el formato que espera la API de Gemini
-    historial_gemini = [
-        {"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]} 
-        for m in st.session_state.mensajes[:-1] # Pasamos todo menos el prompt actual
-    ]
-    
     with st.chat_message("assistant"):
-        with st.spinner("Procesando..."):
+        with st.spinner("Procesando consulta..."):
             def ejecutar_llamada(modelo_nombre):
                 # Usamos el historial completo en la llamada
                 resp = client.models.generate_content(
