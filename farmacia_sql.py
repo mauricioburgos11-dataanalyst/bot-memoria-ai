@@ -124,6 +124,7 @@ Table: telefonos_laboratorios
 
  REGLAS PARA CONSULTAS SQL:
 - No uses comillas dobles ("") para los nombres de tablas ni columnas en las consultas MySQL.
+- Al filtrar por texto en nombres de laboratorios, productos o drogas, USA SIEMPRE 'LIKE %texto%' (por ejemplo: WHERE l.nombre LIKE '%Roemmers%').
 - Para saber el stock de un producto, debes unir 'productos' con 'lotes_en_stock' usando productos.codigo_barras = lotes_en_stock.codigo_barras.
 - Para saber la droga, forma o laboratorio de un producto, haz los JOINs correspondientes con 'laboratorios', 'forma_farmaceutica', 'concentraciones' y 'presentaciones'.
 - Genera ÚNICAMENTE consultas de lectura que comiencen con 'SELECT'.
