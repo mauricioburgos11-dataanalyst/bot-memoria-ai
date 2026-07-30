@@ -23,6 +23,28 @@ def guardar_informacion_en_base_de_datos(clave: str, valor: str) -> str:
     database.guardar_dato(clave, valor)
     return f"Éxito: Se guardó en MySQL '{clave}' = '{valor}'"
 
+# DEFINIMOS LA HERRAMIENTA DE CONSULTA A FARMACIA
+def consultar_base_de_datos_farmacia(consulta_sql: str) -> str:
+    """
+    Ejecuta una consulta SQL SELECT en la base de datos de la farmacia.
+    Úsala SIEMPRE que el usuario pregunte por stock, precios, productos, laboratorios.
+    IMPORTANTE: Genera únicamente consultas SELECT.
+    """
+    # Seguridad básica: Solo permitimos consultas de lectura (SELECT)
+    if not consulta_sql.strip().lower().startswith("select"):
+        return "Error de seguridad: Solo se permiten consultas de lectura (SELECT)."
+    
+    res = farmacia_sql.ejecutar_consulta_sql(consulta_sql)
+    return str(res)
+
+def modificar_base_de_datos_farmacia(consulta_sql: str) -> str:
+    """
+    Ejecuta comandos DDL o DML (CREATE TABLE, ALTER TABLE, INSERT, UPDATE, DELETE) 
+    para modificar o ampliar la estructura de la base de datos de la farmacia.
+    Úsala cuando el usuario te pida crear tablas nuevas, agregar campos o insertar registros.
+    """
+    return farmacia_sql.ejecutar_modificacion_sql(consulta_sql)
+
 # CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="AI Engineer App - Mauricio", page_icon="🧠", layout="wide")
 st.title("🧠 Asistente con Memoria MySQL + RAG")
@@ -44,6 +66,25 @@ with st.sidebar:
             with st.spinner("Creando Embeddings en ChromaDB..."):
                 num_chunks = rag_manager.procesar_pdf(archivo_pdf)
                 st.success(f"¡PDF procesado! {num_chunks} fragmentos guardados.")
+
+# Si la IA sugiere una modificación SQL, la mostramos en un bloque especial
+if "sql_pendiente" in st.session_state and st.session_state.sql_pendiente:
+    st.warning("⚠️ La IA propone ejecutar la siguiente modificación en la base de datos:")
+    st.code(st.session_state.sql_pendiente, language="sql")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ Confirmar y Aplicar Cambio en Aiven"):
+            resultado = farmacia_sql.ejecutar_modificacion_sql(st.session_state.sql_pendiente)
+            st.success(resultado)
+            st.session_state.sql_pendiente = None
+            st.rerun()
+            
+    with col2:
+        if st.button("❌ Cancelar Operación"):
+            st.session_state.sql_pendiente = None
+            st.info("Operación cancelada. No se modificó la base de datos.")
+            st.rerun()
 
 # HISTORIAL DE CHAT
 if "mensajes" not in st.session_state:
@@ -142,44 +183,3 @@ if prompt := st.chat_input("Escribe tu mensaje..."):
             # Si se guardó un dato nuevo en Aiven, recargamos la interfaz para actualizar el sidebar
             if guardo_algo:
                 st.rerun()
-                
-# DEFINIMOS LA HERRAMIENTA DE CONSULTA A FARMACIA
-def consultar_base_de_datos_farmacia(consulta_sql: str) -> str:
-    """
-    Ejecuta una consulta SQL SELECT en la base de datos de la farmacia.
-    Úsala SIEMPRE que el usuario pregunte por stock, precios, productos, laboratorios.
-    IMPORTANTE: Genera únicamente consultas SELECT.
-    """
-    # Seguridad básica: Solo permitimos consultas de lectura (SELECT)
-    if not consulta_sql.strip().lower().startswith("select"):
-        return "Error de seguridad: Solo se permiten consultas de lectura (SELECT)."
-    
-    res = farmacia_sql.ejecutar_consulta_sql(consulta_sql)
-    return str(res)
-
-def modificar_base_de_datos_farmacia(consulta_sql: str) -> str:
-    """
-    Ejecuta comandos DDL o DML (CREATE TABLE, ALTER TABLE, INSERT, UPDATE, DELETE) 
-    para modificar o ampliar la estructura de la base de datos de la farmacia.
-    Úsala cuando el usuario te pida crear tablas nuevas, agregar campos o insertar registros.
-    """
-    return farmacia_sql.ejecutar_modificacion_sql(consulta_sql)
-
-# Si la IA sugiere una modificación SQL, la mostramos en un bloque especial
-if "sql_pendiente" in st.session_state and st.session_state.sql_pendiente:
-    st.warning("⚠️ La IA propone ejecutar la siguiente modificación en la base de datos:")
-    st.code(st.session_state.sql_pendiente, language="sql")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("✅ Confirmar y Aplicar Cambio en Aiven"):
-            resultado = farmacia_sql.ejecutar_modificacion_sql(st.session_state.sql_pendiente)
-            st.success(resultado)
-            st.session_state.sql_pendiente = None
-            st.rerun()
-            
-    with col2:
-        if st.button("❌ Cancelar Operación"):
-            st.session_state.sql_pendiente = None
-            st.info("Operación cancelada. No se modificó la base de datos.")
-            st.rerun()
