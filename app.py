@@ -126,21 +126,40 @@ if prompt := st.chat_input("Consulta tu farmacia o gestiona datos..."):
 
             # Lógica de herramientas
             debe_recargar = False
+            # ✅ FORMA ROBUSTA (Standard Function Calling Loop):
+
             if resp.function_calls:
                 for llamada in resp.function_calls:
                     if llamada.name == "guardar_informacion_en_base_de_datos":
-                        guardar_informacion_en_base_de_datos(llamada.args.get("clave"), llamada.args.get("valor"))
+                        res = guardar_informacion_en_base_de_datos(
+                            llamada.args.get("clave"), 
+                            llamada.args.get("valor")
+                        )
                         debe_recargar = True
+            
                     elif llamada.name == "consultar_base_de_datos_farmacia":
                         sql = llamada.args.get("consulta_sql")
-                        st.info(f"⚙️ SQL: `{sql}`")
+                        st.info(f"⚙️ SQL Ejecutado: `{sql}`")
                         res = consultar_base_de_datos_farmacia(sql)
-                        # Llamada final con resultado
-                        resp = client.models.generate_content(
-                            model='gemini-3.1-flash-lite',
-                            contents=final_contents + [resp.candidates[0].content] + [types.Content(role="model", parts=[types.Part.from_text(text=f"Resultado: {res}")])],
-                            config=config
-                        )
+            
+                    elif llamada.name == "proponer_modificacion_farmacia":
+                        res = proponer_modificacion_farmacia(llamada.args.get("consulta_sql"))
+            
+                    # Enviamos el FunctionResponse formal a Gemini
+                    function_response_part = types.Part.from_function_response(
+                        name=llamada.name,
+                        response={"result": res}
+                    )
+            
+                    # Re-evaluamos con la respuesta exacta del sistema
+                    resp = client.models.generate_content(
+                        model='gemini-3.1-flash-lite',
+                        contents=final_contents + [
+                            resp.candidates[0].content, # El call original del modelo
+                            types.Content(role="user", parts=[function_response_part]) # La respuesta del Tool
+                        ],
+                        config=config
+                    )
             
             st.markdown(resp.text)
             st.session_state.mensajes.append({"role": "assistant", "content": resp.text})
