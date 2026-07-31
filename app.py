@@ -119,7 +119,7 @@ if prompt := st.chat_input("Consulta tu farmacia o gestiona datos..."):
     with st.chat_message("assistant"):
         with st.spinner("Procesando..."):
             resp = client.models.generate_content(
-                model='gemini-3.5-flash',
+                model='gemini-3.1-flash-lite',
                 contents=final_contents,
                 config=config
             )
