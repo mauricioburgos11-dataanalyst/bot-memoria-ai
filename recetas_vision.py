@@ -18,26 +18,30 @@ class EstructuraReceta(BaseModel):
 
 def analizar_imagen_receta(bytes_imagen: bytes, mime_type: str, catalogo_productos: list) -> dict:
     """
-    Analiza receta comparándola con un catálogo de productos real.
-    catalogo_productos: una lista de strings con los nombres exactos de tu base (ej: ['Hexaler Cort', 'Ibupirac 600', ...])
+    Recibe los bytes de la imagen y una lista de productos válidos para corregir errores de lectura.
     """
-    
+    client = genai.Client()
+
+    # Convertimos la lista de Python en un texto legible para el prompt
+    lista_catalogo_str = "\n".join([f"- {prod}" for prod in catalogo_productos])
+
     prompt_instrucciones = f"""
-    Eres un asistente farmacéutico experto. Tu tarea es extraer medicamentos de recetas.
+    Eres un asistente farmacéutico experto en lectura de recetas médicas argentinas.
     
-    CATÁLOGO DE PRODUCTOS VÁLIDOS (IMPORTANTE):
-    {catalogo_productos}
+    CATÁLOGO DE PRODUCTOS VÁLIDOS EN LA FARMACIA:
+    {lista_catalogo_str}
     
-    REGLAS:
-    1. Si el nombre detectado en la receta es similar a alguno en el catálogo, DEBES corregirlo al nombre exacto del catálogo.
-    2. Ejemplo: Si lees 'Hexaler cat', corrígelo a 'Hexaler Cort'.
-    3. Si la fecha es ambigua (ej: 6/6 vs 9/6), indica el valor más probable y añade una advertencia en 'observaciones'.
-    4. Devuelve los datos en formato JSON estricto según el esquema.
+    REGLAS DE EXTRACCIÓN Y CORRECCIÓN:
+    1. Compara el medicamento que leas en la imagen con el CATÁLOGO DE PRODUCTOS VÁLIDOS.
+    2. Si la caligrafía es ambigua (Ej: lees 'Hexaler cat'), DEBES corregirlo usando el nombre exacto que figure en el catálogo (Ej: 'Hexaler Cort').
+    3. Si el medicamento claramente NO está en el catálogo, extrae lo que leas literalmente.
+    4. Regla de Fechas: Analiza la estructura visual. Si un número parece un '9' rápido o un '6' con bucle cerrado, prioriza la interpretación que sea una fecha coherente con el día de hoy. Si dudas, anota 'Revisar fecha' en observaciones.
+    5. Devuelve la respuesta estrictamente en el JSON solicitado.
     """
 
     config = types.GenerateContentConfig(
         system_instruction=prompt_instrucciones,
-        temperature=0.1,  # Baja temperatura para evitar inventiva
+        temperature=0.1,  # Temperatura baja para evitar alucinaciones
         response_mime_type="application/json",
         response_schema=EstructuraReceta,
     )
@@ -47,7 +51,7 @@ def analizar_imagen_receta(bytes_imagen: bytes, mime_type: str, catalogo_product
             model='gemini-3.1-flash-lite',
             contents=[
                 types.Part.from_bytes(data=bytes_imagen, mime_type=mime_type),
-                "Extrae los datos de esta receta médica."
+                "Extrae los datos de esta receta médica respetando las reglas de corrección."
             ],
             config=config
         )
