@@ -38,7 +38,7 @@ def analizar_imagen_receta(bytes_imagen: bytes, mime_type: str) -> dict:
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash', # Recomendado para tareas de visión estándar
+            model='gemini-3.1-flash-lite',
             contents=[
                 types.Part.from_bytes(data=bytes_imagen, mime_type=mime_type),
                 "Extrae los datos de esta receta médica."
