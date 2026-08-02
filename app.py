@@ -70,12 +70,15 @@ with st.sidebar:
     receta_file = st.file_uploader("Subir foto de receta:", type=["jpg", "jpeg", "png", "webp"])
     
     if receta_file and st.button("🔍 Escanear Receta"):
-        with st.spinner("Analizando letra médica con Gemini..."):
+        with st.spinner("Consultando catálogo y analizando letra médica..."):
             bytes_data = receta_file.getvalue()
             mime_type = receta_file.type
             
-            # Llamamos a nuestro módulo de visión
-            resultado = recetas_vision.analizar_imagen_receta(bytes_data, mime_type)
+            # 1. Traemos el catálogo de la base de datos
+            catalogo = farmacia_sql.obtener_catalogo_productos()
+            
+            # 2. Le pasamos la imagen Y el catálogo a Gemini
+            resultado = recetas_vision.analizar_imagen_receta(bytes_data, mime_type, catalogo)
             
             if "error" in resultado:
                 st.error(resultado["error"])
