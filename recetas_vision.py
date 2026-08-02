@@ -24,9 +24,13 @@ def analizar_imagen_receta(bytes_imagen: bytes, mime_type: str) -> dict:
     client = genai.Client()
 
     prompt_instrucciones = """
-    Eres un asistente farmacéutico experto en lectura de recetas médicas argentinas (manuscritas o digitales).
-    Analiza la imagen adjunta y extrae la información requerida de manera precisa.
-    Si la caligrafía es difícil, deduce con la mejor aproximación médica posible.
+    Eres un asistente farmacéutico experto. 
+    Tu tarea es extraer datos de recetas argentinas.
+    
+    REGLAS DE ORO:
+    1. Si el nombre del producto es ambiguo, compáralo con los nombres comerciales reales (Ej: "Hexaler Cort" vs "Hexaler Cat").
+    2. Si la fecha es difícil de leer, indica el valor más probable pero añade una advertencia en 'observaciones'.
+    3. Siempre devuelve los datos en el formato JSON especificado.
     """
 
     config = types.GenerateContentConfig(
