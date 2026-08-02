@@ -165,3 +165,41 @@ def ejecutar_modificacion_sql(query_sql: str):
         return "✅ Operación SQL ejecutada con éxito en la base de datos."
     except Exception as e:
         return f"Error al ejecutar modificación SQL: {e}"
+
+def obtener_catalogo_productos():
+    """
+    Extrae la lista de productos de la base de datos MySQL (Aiven) 
+    para usarla como diccionario de corrección en el OCR de recetas.
+    """
+    query = """
+    SELECT 
+        p.nombre_comercial, 
+        c.valor as concentracion, 
+        f.nombre as forma
+    FROM productos p
+    LEFT JOIN concentraciones c ON p.concentracion_id = c.concentracion_id
+    LEFT JOIN forma_farmaceutica f ON p.forma_id = f.forma_id;
+    """
+    
+    resultados = ejecutar_consulta_sql(query)
+    
+    # Si hubo un error de conexión, ejecutar_consulta_sql devuelve un string.
+    # En ese caso, devolvemos una lista vacía para no romper el programa.
+    if isinstance(resultados, str):
+        return []
+    
+    catalogo = []
+    for fila in resultados:
+        # Extraemos los valores, manejando posibles nulos (None)
+        nombre = fila.get("nombre_comercial") or ""
+        conc = fila.get("concentracion") or ""
+        forma = fila.get("forma") or ""
+        
+        # Armamos el string completo, ej: "Hexaler Cort 5mg Jarabe"
+        item_completo = f"{nombre} {conc} {forma}".strip()
+        # Limpiamos espacios dobles por si falta algún dato
+        item_completo = " ".join(item_completo.split()) 
+        
+        catalogo.append(item_completo)
+        
+    return catalogo
