@@ -6,6 +6,7 @@ from google.genai import types
 import database      # Tu módulo MySQL para memoria personal
 import rag_manager   # Tu módulo para ChromaDB/RAG
 import farmacia_sql  # Tu módulo para consultas SQL de la farmacia
+import recetas_vision # Módulo Google Vision
 
 # Cargar variables de entorno
 load_dotenv()
@@ -61,6 +62,43 @@ with st.sidebar:
         with st.spinner("Procesando embeddings..."):
             n = rag_manager.procesar_pdf(archivo)
             st.success(f"¡Hecho! {n} fragmentos guardados.")
+
+    st.markdown("---")
+    st.header("📷 Lector de Recetas con Visión")
+    
+    # Subidor de archivos para recetas
+    receta_file = st.file_uploader("Subir foto de receta:", type=["jpg", "jpeg", "png", "webp"])
+    
+    if receta_file and st.button("🔍 Escanear Receta"):
+        with st.spinner("Analizando letra médica con Gemini..."):
+            bytes_data = receta_file.getvalue()
+            mime_type = receta_file.type
+            
+            # Llamamos a nuestro módulo de visión
+            resultado = recetas_vision.analizar_imagen_receta(bytes_data, mime_type)
+            
+            if "error" in resultado:
+                st.error(resultado["error"])
+            else:
+                st.success("¡Receta procesada con éxito!")
+                st.image(bytes_data, caption="Receta Escaneada", use_column_width=True)
+                
+                # Mostramos los datos extraídos
+                st.write(f"**Obra Social / Prepaga:** {resultado.get('obra_social_o_prepaga')}")
+                st.write(f"**Observaciones:** {resultado.get('observaciones')}")
+                
+                st.markdown("### 💊 Medicamentos Detectados:")
+                medicamentos = resultado.get("medicamentos", [])
+                
+                for idx, med in enumerate(medicamentos, 1):
+                    st.write(f"**{idx}. {med['nombre_comercial_o_droga']}** ({med['concentracion']} - {med['forma_farmaceutica']}) x{med['cantidad_solicitada']}")
+                    
+                    # Botón opcional para inyectar la búsqueda directamente al chat
+                    nombre_med = med['nombre_comercial_o_droga']
+                    if st.button(f"🔎 Consultar stock de '{nombre_med}'", key=f"btn_med_{idx}"):
+                        prompt_auto = f"¿Tenemos stock de {nombre_med} {med['concentracion']}?"
+                        st.session_state.mensajes.append({"role": "user", "content": prompt_auto})
+                        st.rerun()
 
 # SECCIÓN HUMAN-IN-THE-LOOP
 if st.session_state.sql_pendiente:
