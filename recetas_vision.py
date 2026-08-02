@@ -16,21 +16,23 @@ class EstructuraReceta(BaseModel):
     medicamentos: list[MedicamentoDetectado]
     observaciones: str = Field(description="Aclaraciones extra (ej. 'Requiere receta archivada', 'Letra poco legible', etc.)")
 
-def analizar_imagen_receta(bytes_imagen: bytes, mime_type: str) -> dict:
+def analizar_imagen_receta(bytes_imagen: bytes, mime_type: str, catalogo_productos: list) -> dict:
     """
-    Recibe los bytes de una imagen de receta y utiliza Gemini Vision
-    para extraer medicamentos y obra social en formato JSON estructurado.
+    Analiza receta comparándola con un catálogo de productos real.
+    catalogo_productos: una lista de strings con los nombres exactos de tu base (ej: ['Hexaler Cort', 'Ibupirac 600', ...])
     """
-    client = genai.Client()
-
-    prompt_instrucciones = """
-    Eres un asistente farmacéutico experto. 
-    Tu tarea es extraer datos de recetas argentinas.
     
-    REGLAS DE ORO:
-    1. Si el nombre del producto es ambiguo, compáralo con los nombres comerciales reales (Ej: "Hexaler Cort" vs "Hexaler Cat").
-    2. Si la fecha es difícil de leer, indica el valor más probable pero añade una advertencia en 'observaciones'.
-    3. Siempre devuelve los datos en el formato JSON especificado.
+    prompt_instrucciones = f"""
+    Eres un asistente farmacéutico experto. Tu tarea es extraer medicamentos de recetas.
+    
+    CATÁLOGO DE PRODUCTOS VÁLIDOS (IMPORTANTE):
+    {catalogo_productos}
+    
+    REGLAS:
+    1. Si el nombre detectado en la receta es similar a alguno en el catálogo, DEBES corregirlo al nombre exacto del catálogo.
+    2. Ejemplo: Si lees 'Hexaler cat', corrígelo a 'Hexaler Cort'.
+    3. Si la fecha es ambigua (ej: 6/6 vs 9/6), indica el valor más probable y añade una advertencia en 'observaciones'.
+    4. Devuelve los datos en formato JSON estricto según el esquema.
     """
 
     config = types.GenerateContentConfig(
