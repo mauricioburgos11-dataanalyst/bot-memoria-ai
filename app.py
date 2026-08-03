@@ -134,12 +134,18 @@ for msg in st.session_state.mensajes:
         st.markdown(msg["content"])
 
 # CHAT INTERACTIVO
-if prompt := st.chat_input("Consulta tu farmacia o gestiona datos..."):
+# 1. Leemos la cajita de texto. Si el usuario escribe algo, lo guardamos.
+prompt = st.chat_input("Consulta tu farmacia o gestiona datos...")
+if prompt:
     st.session_state.mensajes.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
 
-    # 1. Preparar historial en el formato correcto (Content/Part)
+# 2. LÓGICA DE RESPUESTA: Se activa si el último mensaje en la lista es del 'user'
+if st.session_state.mensajes and st.session_state.mensajes[-1]["role"] == "user":
+    
+    # Extraemos el texto que escribió el usuario (o que inyectó el botón)
+    texto_usuario = st.session_state.mensajes[-1]["content"]
+    
+    # Preparamos el historial para Gemini (excluyendo el último mensaje)
     historial_gemini = []
     for msg in st.session_state.mensajes[:-1]:
         role = "user" if msg["role"] == "user" else "model"
@@ -151,12 +157,12 @@ if prompt := st.chat_input("Consulta tu farmacia o gestiona datos..."):
     # 2. Agregar mensaje actual
     prompt_content = types.Content(
         role="user",
-        parts=[types.Part.from_text(text=prompt)]
+        parts=[types.Part.from_text(text=texto_usuario)]
     )
     final_contents = historial_gemini + [prompt_content]
 
     # Contextos adicionales
-    contexto_rag = rag_manager.buscar_contexto_relevante(prompt)
+    contexto_rag = rag_manager.buscar_contexto_relevante(texto_usuario)
     contexto_mysql = database.obtener_memoria()
 
     config = types.GenerateContentConfig(
