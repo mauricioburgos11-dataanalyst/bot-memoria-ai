@@ -78,7 +78,7 @@ with st.sidebar:
             catalogo = farmacia_sql.obtener_catalogo_productos()
             
             # 2. Le pasamos la imagen Y el catálogo a Gemini
-            resultado = recetas_vision.analizar_imagen_receta(bytes_data, mime_type, catalogo)
+            resultado = recetas_vision.analizar_imagen_receta(client, bytes_data, mime_type, catalogo)
             
             if "error" in resultado:
                 st.error(resultado["error"])
