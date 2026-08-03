@@ -69,39 +69,51 @@ with st.sidebar:
     # Subidor de archivos para recetas
     receta_file = st.file_uploader("Subir foto de receta:", type=["jpg", "jpeg", "png", "webp"])
     
-    if receta_file and st.button("🔍 Escanear Receta"):
-        with st.spinner("Consultando catálogo y analizando letra médica..."):
-            bytes_data = receta_file.getvalue()
-            mime_type = receta_file.type
-            
-            # 1. Traemos el catálogo de la base de datos
-            catalogo = farmacia_sql.obtener_catalogo_productos()
-            
-            # 2. Le pasamos la imagen Y el catálogo a Gemini
-            resultado = recetas_vision.analizar_imagen_receta(client, bytes_data, mime_type, catalogo)
-            
-            if "error" in resultado:
-                st.error(resultado["error"])
-            else:
-                st.success("¡Receta procesada con éxito!")
-                st.image(bytes_data, caption="Receta Escaneada", use_column_width=True)
+    # 1. Botón para escanear y guardar en memoria
+    if receta_file:
+        if st.button("🔍 Escanear Receta"):
+            with st.spinner("Consultando catálogo y analizando letra médica..."):
+                bytes_data = receta_file.getvalue()
+                mime_type = receta_file.type
+                catalogo = farmacia_sql.obtener_catalogo_productos()
                 
-                # Mostramos los datos extraídos
-                st.write(f"**Obra Social / Prepaga:** {resultado.get('obra_social_o_prepaga')}")
-                st.write(f"**Observaciones:** {resultado.get('observaciones')}")
+                resultado = recetas_vision.analizar_imagen_receta(client, bytes_data, mime_type, catalogo)
                 
-                st.markdown("### 💊 Medicamentos Detectados:")
-                medicamentos = resultado.get("medicamentos", [])
+                # GUARDAMOS EL RESULTADO Y LA IMAGEN EN LA MEMORIA DE STREAMLIT
+                st.session_state.resultado_receta = resultado
+                st.session_state.imagen_receta = bytes_data
+
+    # 2. Fuera del botón de escanear, mostramos la UI si hay algo en memoria
+    if "resultado_receta" in st.session_state:
+        resultado = st.session_state.resultado_receta
+        
+        if "error" in resultado:
+            st.error(resultado["error"])
+        else:
+            st.success("¡Receta procesada con éxito!")
+            st.image(st.session_state.imagen_receta, caption="Receta Escaneada", use_column_width=True)
+            
+            st.write(f"**Obra Social / Prepaga:** {resultado.get('obra_social_o_prepaga')}")
+            st.write(f"**Observaciones:** {resultado.get('observaciones')}")
+            
+            st.markdown("### 💊 Medicamentos Detectados:")
+            medicamentos = resultado.get("medicamentos", [])
+            
+            for idx, med in enumerate(medicamentos, 1):
+                nombre_med = med['nombre_comercial_o_droga']
+                st.write(f"**{idx}. {nombre_med}** ({med['concentracion']} - {med['forma_farmaceutica']}) x{med['cantidad_solicitada']}")
                 
-                for idx, med in enumerate(medicamentos, 1):
-                    st.write(f"**{idx}. {med['nombre_comercial_o_droga']}** ({med['concentracion']} - {med['forma_farmaceutica']}) x{med['cantidad_solicitada']}")
+                # Este botón ahora es estable porque está fuera del if inicial
+                if st.button(f"🔎 Consultar stock de '{nombre_med}'", key=f"btn_med_{idx}"):
+                    prompt_auto = f"¿Tenemos stock de {nombre_med} {med['concentracion']}?"
                     
-                    # Botón opcional para inyectar la búsqueda directamente al chat
-                    nombre_med = med['nombre_comercial_o_droga']
-                    if st.button(f"🔎 Consultar stock de '{nombre_med}'", key=f"btn_med_{idx}"):
-                        prompt_auto = f"¿Tenemos stock de {nombre_med} {med['concentracion']}?"
-                        st.session_state.mensajes.append({"role": "user", "content": prompt_auto})
-                        st.rerun()
+                    # Inyectamos la pregunta al chat
+                    st.session_state.mensajes.append({"role": "user", "content": prompt_auto})
+                    
+                    # Opcional: borrar la receta de la memoria si querés que desaparezca tras consultar
+                    # del st.session_state.resultado_receta 
+                    
+                    st.rerun()
 
 # SECCIÓN HUMAN-IN-THE-LOOP
 if st.session_state.sql_pendiente:
