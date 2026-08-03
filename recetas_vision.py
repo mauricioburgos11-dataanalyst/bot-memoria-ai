@@ -16,12 +16,10 @@ class EstructuraReceta(BaseModel):
     medicamentos: list[MedicamentoDetectado]
     observaciones: str = Field(description="Aclaraciones extra (ej. 'Requiere receta archivada', 'Letra poco legible', etc.)")
 
-def analizar_imagen_receta(bytes_imagen: bytes, mime_type: str, catalogo_productos: list) -> dict:
+def analizar_imagen_receta(client, bytes_imagen: bytes, mime_type: str, catalogo_productos: list) -> dict:
     """
     Recibe los bytes de la imagen y una lista de productos válidos para corregir errores de lectura.
     """
-    client = genai.Client()
-
     # Convertimos la lista de Python en un texto legible para el prompt
     lista_catalogo_str = "\n".join([f"- {prod}" for prod in catalogo_productos])
 
