@@ -31,10 +31,10 @@ def analizar_imagen_receta(client, bytes_imagen: bytes, mime_type: str, catalogo
     
     REGLAS DE EXTRACCIÓN Y CORRECCIÓN:
     1. Compara el medicamento que leas en la imagen con el CATÁLOGO DE PRODUCTOS VÁLIDOS.
-    2. Si la caligrafía es ambigua (Ej: lees 'Hexaler cat'), DEBES corregirlo usando el nombre exacto que figure en el catálogo (Ej: 'Hexaler Cort').
-    3. Si el medicamento claramente NO está en el catálogo, extrae lo que leas literalmente.
-    4. Regla de Fechas: Analiza la estructura visual. Si un número parece un '9' rápido o un '6' con bucle cerrado, prioriza la interpretación que sea una fecha coherente con el día de hoy. Si dudas, anota 'Revisar fecha' en observaciones.
-    5. Devuelve la respuesta estrictamente en el JSON solicitado.
+    2. Si hay errores por la caligrafía (Ej: lees 'Hexaler cat'), DEBES mapearlo al nombre exacto del catálogo (Ej: 'Hexaler Cort').
+    3. REGLA ESTRICTA: NO expliques ni menciones que hiciste una corrección. No lo pongas en las observaciones ni al lado del nombre. Simplemente devuelve el nombre correcto del catálogo en silencio.
+    4. Si el medicamento claramente NO está en el catálogo, extrae lo que leas literalmente.
+    5. Fechas: Prioriza la interpretación de fecha más coherente con la actualidad.
     """
 
     config = types.GenerateContentConfig(
